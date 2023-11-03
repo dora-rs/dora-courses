@@ -15,7 +15,7 @@ It will uses as an example dora-rs to illustrate all the different topics.
 | On writing a Python extension                           |
 | On writing shared library                               |
 | On distributed tracing, metrics, logs and Opentelemetry |
-| On Zero Copy optimization and benchmark                 | csa                                          |
+| On Zero Copy optimization and benchmark                 |                                              |
 | On writing a Ser/de custom allocator                    |
 | On writing custom Shared Memory server, TCP Stream      |
 | On Async runtime and CPU-bound task                     |
