@@ -10,6 +10,7 @@ It will uses as an example dora-rs to illustrate all the different topics.
 | ------------------------------------------------------- | -------------------------------------------- |
 | Dora Motivation and Basic Usage                         | [Slides](dora_motivation/presentation.pdf)   |
 | Advanced features and how to contribute                 | [Slides](advanced_features/presentation.pdf) |
+| Dora-drives getting started                             | [Slides](dora_drives/presentation.pdf)       |
 | On data format                                          |
 | On writing command line interface and tokio runtime     |
 | On writing a Python extension                           |
