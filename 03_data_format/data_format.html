@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Dora Data Format</title>
+    <meta charset="utf-8">
+    <style>
+        @font-face {
+            font-family: 'Carlito';
+            src: url('../fonts/Carlito.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Carlito';
+            src: url('../fonts/Carlito-Bold.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Carlito';
+            src: url('../fonts/Carlito-Italic.woff2') format('woff2');
+            font-weight: normal;
+            font-style: italic;
+        }
+
+        @font-face {
+            font-family: 'Iosevka Web';
+            font-display: swap;
+            font-weight: 400;
+            font-stretch: normal;
+            font-style: normal;
+            src: url('../fonts/iosevka-regular.woff2') format('woff2');
+        }
+
+        @font-face {
+            font-family: 'Carlito';
+            src: url('../fonts/Carlito-BoldItalic.woff2') format('woff2');
+            font-weight: 700;
+            font-style: italic;
+        }
+
+        @font-face {
+            font-family: 'Bebas Neue';
+            src: url('../fonts/BebasNeueRegular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Bebas Neue';
+            src: url('../fonts/BebasNeueBold.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Iosevka Web';
+            font-display: swap;
+            font-weight: 400;
+            font-stretch: normal;
+            font-style: italic;
+            src: url('../fonts/iosevka-italic.woff2') format('woff2');
+        }
+
+        @font-face {
+            font-family: 'Iosevka Web';
+            font-display: swap;
+            font-weight: 700;
+            font-stretch: normal;
+            font-style: normal;
+            src: url('../fonts/iosevka-bold.woff2') format('woff2');
+        }
+
+        @font-face {
+            font-family: 'Iosevka Web';
+            font-display: swap;
+            font-weight: 700;
+            font-stretch: normal;
+            font-style: italic;
+            src: url('../fonts/iosevka-bolditalic.woff2') format('woff2');
+        }
+
+        body {
+            font-family: 'Carlito';
+        }
+
+        .remark-slide-content {
+            padding: 1rem 4rem 1rem 4rem;
+        }
+
+        .middle-slide {
+            font-size: 25px;
+        }
+
+        h1,
+        h2,
+        h3 {
+            font-family: 'Carlito';
+            font-weight: bold;
+        }
+
+        .remark-slide-content h1 {
+            margin-top: 1rem;
+            font-size: 4rem;
+            margin-bottom: 2rem;
+        }
+
+        .remark-code,
+        .remark-inline-code {
+            font-family: 'Iosevka Web', Iosevka, monospace;
+        }
+
+        .title-slide,
+        .final-slide {
+            color: #000;
+        }
+
+        .title-slide .remark-slide-number,
+        .final-slide .remark-slide-number {
+            visibility: hidden;
+        }
+
+        .title-slide h1 {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-family: 'Bebas Neue';
+            font-size: 96pt;
+            margin-top: 1.5rem;
+        }
+
+        .title-slide h2 {
+            font-size: 3.5rem;
+            margin-bottom: 0rem;
+            margin-top: 1rem;
+        }
+
+        .title-slide .author-info {
+            position: absolute;
+            bottom: 2rem;
+            font-size: 1.5rem;
+        }
+
+        .final-slide h1 {
+            margin-top: 1.5rem;
+            font-size: 6rem;
+        }
+
+        li {
+            margin-top: 0.5rem;
+        }
+
+        li p:first-child {
+            margin-top: 0rem;
+        }
+
+        li p {
+            margin-bottom: 0rem;
+        }
+
+        li pre {
+            margin-top: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .remark-slide-number {
+            right: 2rem;
+        }
+
+        .footer {
+            position: absolute;
+            opacity: 0.5;
+            bottom: 12px;
+            left: 4rem;
+            font-size: 1rem;
+            line-height: 1.8;
+            text-align: left;
+        }
+
+        .right-column {
+            width: 25%;
+            float: right;
+            display: block;
+            font-size: 0.8em;
+            margin-left: 2rem;
+        }
+
+        .right-column figure {
+            margin: 0rem;
+        }
+
+        .right-column img {
+            max-width: 100%;
+        }
+
+        .right-column figcaption {
+            font-style: italic;
+            font-size: 0.8em;
+            color: #555;
+        }
+
+        .right-column h3 {
+            margin-bottom: 0rem;
+            font-size: 1.2em;
+        }
+
+        .right-column> :first-child {
+            margin-top: 0rem;
+        }
+
+        .footnotes,
+        .footnotes a {
+            color: #666;
+        }
+
+        .right-column ol {
+            margin-top: 0.5rem;
+        }
+
+        code,
+        .code {
+            font-family: 'Iosevka';
+        }
+
+        .footnote {
+            color: gray;
+            font-size: 0.6em;
+            vertical-align: super;
+            position: relative;
+            padding-left: 0.2rem;
+            padding-top: -5rem;
+        }
+
+        .footnote::before {
+            content: '['
+        }
+
+        .footnote::after {
+            content: ']'
+        }
+
+        .gray {
+            color: gray;
+        }
+
+        .green-border {
+            border: 2px solid green;
+        }
+
+        .green-border td {
+            border-left: 2px solid green;
+            min-width: 3rem;
+            text-align: center;
+        }
+
+        .green-border td:first-child {
+            border-left: none;
+        }
+
+        .pass-data-check {
+            height: .9em;
+            vertical-align: -0.2rem;
+        }
+    </style>
+</head>
+
+<body>
+    <textarea id="source">
+
+class: title-slide
+
+# Dora Data Format
+
+## Typed messages using Apache Arrow
+
+<div class="author-info">
+    Philipp Oppermann<br>
+    os2edu<br>
+    2023-11-10
+</div>
+
+---
+
+name: middle-slide
+layout: true
+class: middle-slide
+<div class="footer">Dora Data Format, Philipp Oppermann, os2edu, 2023-11-10</div>
+
+---
+
+
+# Agenda
+
+- Motivation:
+  - Representing typed data? -> serialization (e.g. JSON)
+  - Avoiding serialization overhead -> represent data close to native format
+  - Passing data through shared memory -> zero copy
+  - zero copy across languages -> arrow
+- Arrow Data Format
+- Working with the Arrow format
+
+---
+
+# Passing data in Dora
+
+- Dora nodes run as separate processes
+    - Outputs need to cross process boundaries
+    - Pass data using inter process communication (IPC), e.g. TCP stream or shared memory
+- Challenge: IPC interfaces are not typed → raw binary data
+- We need a way to represent higher-level data
+    - For example, floating point values, arrays, or structs
+
+--
+
+- Just use native data representation? → not possible
+  - Native representation varies across languages and architectures
+  - Rust ABI is not stable yet → might change between Rust versions
+
+---
+
+# Serialization
+
+- Serialization encodes data as raw bytes or as string
+  - For example, JSON can be used as a serialization format
+    ```json
+        {
+            "name": "John Doe",
+            "age": 43
+        }
+    ```
+- Receiver can _deserialize_ the data again → to native representation, e.g. Rust struct or Python object
+--
+
+- In Rust, the `serde` crate makes serialization and deserialization easy
+    ```rust
+    #[derive(`serde::Serialize`, `serde::Deserialize`)]
+    struct Person {
+        name: String,
+        age: u32
+    }
+    ```
+    ```rust
+    let person = Person { name: "John Doe".to_string(), age: 43 };
+    let serialized_data: Vec<u8> = serde_json::to_vec(&person).unwrap();
+    ```
+---
+
+# Serialization: Drawbacks
+
+- Requires additional encoding/decoding work
+- Creates an additional copy of all the data
+
+→ Can be costly for large messages (e.g. image data)
+
+--
+
+## Avoiding Serialization Overhead
+
+- Use a serialization format that is close to native data representation
+  - Examples: `protobuf` or Rust `bincode` crate
+- Skip the serialization/deserialization completely by using custom, platform-independent format
+  - Instead of native data format
+  - Example: Cap’n Proto
+
+---
+
+# The Cap’n Proto Format
+
+- Schema files that describe message types
+    ```
+    struct Person {
+        name @0 :Text;
+        email @1 :Text;
+    }
+    ```
+- Use `capnp` tool to compile schema into Rust/C++/Python interface
+    - generates builder functions to create messages
+    - generates accessor methods to read and write message data
+
+--
+
+- Accessing data is only possible through generated accessor methods
+- Serialization/deserialization is a no-op
+    - Data is already in a stable, platform-independent format
+
+---
+
+# Cap’n Proto Example
+
+```rust
+let mut message = ::capnp::message::Builder::new_default();
+{
+    let address_book = message.init_root::<address_book::Builder>();
+    let mut people = address_book.init_people(1);
+    {
+        let mut alice = people.reborrow().get(0);
+        alice.set_id(123);
+        alice.set_name("Alice".into());
+        alice.set_email("alice@example.com".into());
+    }
+}
+let serialized: Vec<u8> = capnp::serialize::write_message_to_words(&message);
+```
+
+Challenges:
+
+- Cap’n Proto is not self-describing → receiver needs to know message type to understand it
+- Receiver must use special accessor methods to read data → this can make data processing difficult
+- Data still needs to be copied on send/receive → avoid by using shared memory
+
+---
+
+# Zero Copy using Shared Memory
+
+- Shared memory gives other processes direct access to some data
+  - Without any copying
+  - Possible on Linux, Windows, and macOS
+--
+
+- Example:
+    - Process A
+        ```rust
+        let shmem = shared_memory::ShmemConf::new().size(4096).create()?;
+
+        // write some data
+        unsafe { *shmem.as_ptr() = 42 };
+
+        let `id` = shmem.get_os_id().to_owned();
+        send_id_to_proc_b(`id`)?; // e.g. through a TCP message
+        ```
+    - Process B
+        ```rust
+        let `id` = receive_id_from_proc_a()?;
+        let shmem = shared_memory::ShmemConf::new().os_id(`id`).open()?;
+        let data = unsafe { *shmem.as_ptr() };
+        ```
+
+---
+
+# Cap’n Proto over Shared Memory
+
+Advantages:
+
+- No serialization/deserialization cost
+- No data copy required
+- Works across languages
+
+Drawbacks:
+
+- Pre-compile step makes build process more complex
+  - Especially for interpreted languages such as Python
+- Cap’n Proto is not self-describing → receiver needs to know message type to understand it
+- Receiver must use special accessor methods to read data → this can make data processing difficult
+
+--
+
+⇒ use the **Apache Arrow** format to avoid the drawbacks
+
+---
+
+# Apache Arrow
+
+- Defines a cross-platform, cross-language data format (similar to Cap’n Proto)
+    - Self-describing format → receiver can deduce message type from data
+    - No schema files or pre-compilation necessary
+    - Provides official bindings for various languages, including Rust and Python
+- Data format designed with zero-copy in mind
+    - Allows slicing and reordering data without copying
+    - Python: zero-copy conversion to numpy and pandas → easier processing<div style="max-width: fit-content;">
+    ```python
+        # numpy to arrow
+        data = numpy.arange(10, dtype='int16')
+        arr = pyarrow.array(data)
+
+        # arrow to numpy
+        arr = pyarrow.array([4, 5, 6], type=pyarrow.int32())
+        view = arr.to_numpy()
+        ```
+    </div>
+
+
+---
+
+# Arrow: Basics
+
+- Base type: `Array`
+  - Specifies item types, etc TODO
+- Array data is stored in one or multiple _buffers_
+  - A buffer represents a memory region, e.g. on the heap or in shared memory
+- Arrays can have children to create more complex types
+    - Example: an array of `Vec<u8>>` can be represented by an offsets buffer and a child `u8` array
+
+---
+
+# Arrow: Primitive Array Representation
+
+TODO
+
+---
+
+# Arrow: Representing single primitives?
+
+- Array with length 1
+
+---
+
+# Arrow Struct Representation
+
+.right-column[
+
+<h3 style="margin-top: 0rem;">Struct Representation</h3>
+
+- one child array for each field
+- child arrays do not need to be adjacent in memory
+    - allows creating smaller slices without copying
+
+<h3 style="margin-top: 3rem;">Reading the offsets buffer</h3>
+
+- field `i` contains start offset
+- field `i+1` contains end offset
+- length can be zero
+
+]
+
+Example: <strong>Layout of <code style="color: #060; margin-left: 1rem;">[
+    <span style="color: #090;">{<span style="color:#666;">'os'</span>, <span style="color: black">1</span>}</span>,
+    <span style="color: #090;">{<span style="color:#666;">''</span>, <span style="color: black">2</span>}</span>,
+    <span style="color: #090;">{<span style="color:#666;">'edu'</span>, <span style="color: black">4</span>}</span>
+]</code></strong>
+
+<ul class="code" style="line-height: 0.9em;">
+    <li>Length: <strong>3</strong></li>
+    <li>Buffers: <strong><code>[]</code></strong></li>
+    <li>Children:<ul>
+        <li>field-0 array<ul>
+            <li>Length: <strong>3</strong></li>
+            <li>Offsets Buffer:
+                <table class="green-border", style="display: inline-block; vertical-align: middle;">
+                    <tr><td>0</td><td>2</td><td>2</td><td>5</td></tr>
+                </table>
+            </li>
+            <li>Value Buffer:
+                <table class="green-border", style="display: inline-block; vertical-align: middle;">
+                    <tr><td>o</td><td>s</td><td>e</td><td>d</td><td>u</td></tr>
+                </table>
+            </li>
+        </ul></li>
+        <li>field-0 array<ul>
+            <li>Length: <strong>3</strong></li>
+            <li>Value Buffer:
+                <table class="green-border", style="display: inline-block; vertical-align: middle;">
+                    <tr><td>1</td><td>2</td><td>4</td></tr>
+                </table>
+            </li>
+        </ul></li>
+    </ul>
+</ul>
+
+---
+
+# Arrow Data Frames
+
+TODO
+
+---
+
+# Arrow: Default Values
+
+TODO?
+
+---
+
+# Dora Data Format
+
+- Inputs and outputs are arrow data
+- Custom conversion methods for native Rust types (primitives, `Vec`, strings, etc)
+- Python: allow construction from Python objects for convenience
+
+---
+
+# Dora: Passing Arrow data in shared memory
+
+1. Calculate required memory size
+2. Allocate shared memory
+3. Write array buffers into shared memory
+  - insert padding to ensure alignment
+  - this step copies the data → use lazy construction TODO
+4. Send shared memory address + metadata to receiver
+
+In receiver:
+
+5. Create Arrow `Buffer`s from shared memory regions (without copying)
+6. Construct Arrow array from buffers and type information
+7. For Python receivers: Import arrow array into `pyarrow` object (no copy)
+
+<!--
+    ---
+        
+    # Passing Data to Python with Arrow
+
+    **Byte Arrays:**
+
+    - Use official `arrow` crate to convert shared memory region to Arrow array
+        - create new `Buffer` based on raw pointer and length (requires `unsafe`)
+        - construct new `ArrayData` instance based on the buffer and its length
+    - Convert Arrow array to `PyObject` through `ToPyArrow` trait
+        - converts the array to a FFI-compatible struct
+        - invokes the `_import_from_c` function of the `pyarrow` Python library
+    - Return the `PyObject` to the Python node
+        - can be accessed using `pyarrow`
+        - conversion to `numpy` arrays or `pandas` DataFrames is possible (no copy!)
+
+    ---
+    # Passing Data to Python with Arrow
+
+    **Memory Cleanup:**
+
+
+    - Sender requires notification when shared memory can be dropped/reused<br>
+        → we need to know when Python code is done with the Arrow array
+    - Arrow format defines a _release callback_
+        - **must** be called by consumers when dropping the data
+        - the `pyarrow` library does this automatically when Python GC drops the array
+    - For proper cleanup, we need to set a _release callback_ in the data<img src="images/buffer-from-custom-allocation.png" style="float: right; width: 25rem; padding-left: 1rem; margin-top: 1rem; border-left: 1px solid #bbb;">
+        - the `arrow` crate defines a callback that forwards to the standard Rust `Drop` trait
+        - we only need to set a proper owner for the underlying buffer using `Buffer::from_custom_allocation`
+
+-->    
+
+---
+
+class: final-slide
+
+# Summary
+
+
+
+
+
+    </textarea>
+    <script src="../remark-latest.min.js"></script>
+    <script>
+        var slideshow = remark.create({
+            ratio: '16:9',
+            navigation: {
+                scroll: false
+            },
+            slideNumberFormat: '%current%',
+            highlightLines: true,
+            highlightSpans: true,
+            countIncrementalSlides: false,
+        });
+    </script>
+</body>
+
+</html>
