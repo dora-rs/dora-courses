@@ -299,7 +299,9 @@ class: middle-slide
   - Avoiding serialization overhead → use platform-independent data format <span class="gray">(e.g. Cap’n Proto)</span>
   - Simplify building and data processing → use Apache Arrow
 - Arrow Data Format
-- Working with Arrow data
+    - Introduction
+    - Data Representation
+    - `RecordBatch` and IPC
 
 ---
 
@@ -535,30 +537,106 @@ Drawbacks:
 
 ---
 
-# Arrow: Basics
+# Basics of Arrow Format
 
 - Base type: `Array`
-  - Specifies item types, etc TODO
+  - specifies item type and length
 - Array data is stored in one or multiple _buffers_
-  - A buffer represents a memory region, e.g. on the heap or in shared memory
+  - a buffer represents a memory region, e.g. on the heap or in shared memory
 - Arrays can have children to create more complex types
-    - Example: an array of `Vec<u8>>` can be represented by an offsets buffer and a child `u8` array
-
+    - Example: an array of `Vec<>>` can be represented by an offsets buffer and a child `u8` array
+- Efficient representation of `null` entries
+     - Arrays support a _validity bitmap_ to indicate entries that are `null`
 ---
 
 # Arrow: Primitive Array Representation
 
-TODO
+
+Example: `Int32` array
+
+`
+[1, null, 2, 4, 8]
+`
+
+
+Representation:
+
+```
+- Length: 5, Null count: 1
+- Validity bitmap buffer:
+
+  | Byte 0 (validity bitmap) | Bytes 1-63            |
+  |--------------------------|-----------------------|
+  | 00011101                 | 0 (padding)           |
+
+- Value Buffer:
+
+  | Bytes 0-3   | Bytes 4-7   | Bytes 8-11  | Bytes 12-15 | Bytes 16-19 | Bytes 20-63           |
+  |-------------|-------------|-------------|-------------|-------------|-----------------------|
+  | 1           | unspecified | 2           | 4           | 8           | unspecified (padding) |
+```
 
 ---
 
 # Arrow: Representing single primitives?
 
-- Array with length 1
+- Arrow is an array-based format → no special representation for single values
+- → Store them as an array with length 1
+
+--
+
+## Convenience Functions in Dora
+
+- We provide an `IntoArrow` trait in Dora → convert various Rust types to arrow array
+    - e.g. `1i64.into_arrow()` creates an `Int64` arrow array with a single entry
+    - e.g. `vec![0u8, 1, 2, 3].into_arrow()` creates an `UInt8` array with 4 entries
+- There are matching `TryFrom` implementations for the receiver
+    - e.g. `i64::try_from(&arrow_array)`
+---
+
+# Arrow: String Arrays
+
+Example: <strong>Layout of <code style="color: #060; margin-left: 1rem;">[
+    <span style="color:#090;">'foo'</span>,
+    <span style="color:#666;">null</span>,
+    <span style="color:#666;">null</span>,
+    <span style="color:#090;">'test'</span>
+]</code></strong>
+
+.right-column[
+
+<h3 style="margin-top: 3rem;">Reading the offsets buffer</h3>
+
+- field `i` contains start offset
+- field `i+1` contains end offset
+- length can be zero
+
+]
+
+```
+- Length: 4, Null count: 2
+- Validity bitmap buffer:
+
+  | Byte 0 (validity bitmap) | Bytes 1-63            |
+  |--------------------------|-----------------------|
+  | 00001001                 | 0 (padding)           |
+
+- Offsets buffer:
+
+  | Bytes 0-19     | Bytes 20-63           |
+  |----------------|-----------------------|
+  | `0, 3, 3, 3, 7`  | unspecified (padding) |
+
+ - Value buffer:
+
+  | Bytes 0-6      | Bytes 7-63            |
+  |----------------|-----------------------|
+  | `footest`        | unspecified (padding) |
+```
 
 ---
 
-# Arrow Struct Representation
+# Arrow: Struct Arrays
 
 .right-column[
 
@@ -612,74 +690,87 @@ Example: <strong>Layout of <code style="color: #060; margin-left: 1rem;">[
 
 ---
 
-# Arrow Data Frames
+# Arrow: Columnar Layout
 
-TODO
+<img style="float: right; width: 40rem; margin-right: -5rem;" src="https://arrow.apache.org/img/simd.png">
+
+- Columnar layout leads to better performance
+  - iterating a single columns is fast, e.g. for a `find` operation
+  - enables vectorization using SIMD operations
+  - columns can be ignored without extra cost
+- ..., but it also makes mutation more expensive
+  - adding a row might require reallocation if buffers are adjacent
+  - data needs to be reordered on insert
+
+→ most bindings treat Arrow arrays as immutable<br>
+→ copy data when it's modified
+
 
 ---
 
-# Arrow: Default Values
+# Arrow: `RecordBatch` and IPC
 
-TODO?
+- A `RecordBatch` is a dataset of multiple arrays that have the same length
+  - Example: array of data plus array of corresponding timestamps
+  - used for data serialization, e.g. writing an event log to a file
+- `RecordBatch` and `StructArray` are similar
+  - both are a collection of fields/arrays with same length
+  - there are `From` implementations to convert between the two types
+  - differences
+    - `StructArray` can be nested and its fields can be `null`
+    - `RecordBatch` can additional top-level metadata and schema information
+- The `arrow-ipc` crate can write a `RecordBatch` into file (or other writer)
+  - using `arrow_ipc::writer::FileWriter` (or `StreamWriter`)
+  - useful for passing arrow data in shared memory
 
 ---
 
-# Dora Data Format
+# Arrow: `RecordBatch` Example
 
-- Inputs and outputs are arrow data
-- Custom conversion methods for native Rust types (primitives, `Vec`, strings, etc)
-- Python: allow construction from Python objects for convenience
+<div class="right-column"><div style="width: 20rem; line-height: 1.5em;">
+Full example: See<br><code>arrow/examples/dynamic_types.rs</code> in <a href="https://github.com/apache/arrow-rs">github.com/apache/arrow-rs</a>
+</div>
 
----
-
-# Dora: Passing Arrow data in shared memory
-
-1. Calculate required memory size
-2. Allocate shared memory
-3. Write array buffers into shared memory
-  - insert padding to ensure alignment
-  - this step copies the data → use lazy construction TODO
-4. Send shared memory address + metadata to receiver
-
-In receiver:
-
-5. Create Arrow `Buffer`s from shared memory regions (without copying)
-6. Construct Arrow array from buffers and type information
-7. For Python receivers: Import arrow array into `pyarrow` object (no copy)
-
-<!--
-    ---
-
-    # Passing Data to Python with Arrow
-
-    **Byte Arrays:**
-
-    - Use official `arrow` crate to convert shared memory region to Arrow array
-        - create new `Buffer` based on raw pointer and length (requires `unsafe`)
-        - construct new `ArrayData` instance based on the buffer and its length
-    - Convert Arrow array to `PyObject` through `ToPyArrow` trait
-        - converts the array to a FFI-compatible struct
-        - invokes the `_import_from_c` function of the `pyarrow` Python library
-    - Return the `PyObject` to the Python node
-        - can be accessed using `pyarrow`
-        - conversion to `numpy` arrays or `pandas` DataFrames is possible (no copy!)
-
-    ---
-    # Passing Data to Python with Arrow
-
-    **Memory Cleanup:**
+<div style="margin-top: 8rem; color: gray;">
+<pre><code>
++----+------------------------+
+| id | nested                 |
++----+------------------------+
+| 1  | {a: a, b: 1.1, c: 2.2} |
+| 2  | {a: b, b: 2.2, c: 3.3} |
+| 3  | {a: c, b: 3.3, c: 4.4} |
+| 4  | {a: d, b: 4.4, c: 5.5} |
+| 5  | {a: e, b: 5.5, c: 6.6} |
++----+------------------------+
+</code></pre>
+</div>
+</div>
 
 
-    - Sender requires notification when shared memory can be dropped/reused<br>
-        → we need to know when Python code is done with the Arrow array
-    - Arrow format defines a _release callback_
-        - **must** be called by consumers when dropping the data
-        - the `pyarrow` library does this automatically when Python GC drops the array
-    - For proper cleanup, we need to set a _release callback_ in the data<img src="images/buffer-from-custom-allocation.png" style="float: right; width: 25rem; padding-left: 1rem; margin-top: 1rem; border-left: 1px solid #bbb;">
-        - the `arrow` crate defines a callback that forwards to the standard Rust `Drop` trait
-        - we only need to set a proper owner for the underlying buffer using `Buffer::from_custom_allocation`
+```
+// define schema
+let schema = Schema::new(vec![
+    Field::new("id", DataType::Int32, false),
+    Field::new("nested", DataType::Struct(Fields::from(vec![
+        Field::new("a", DataType::Utf8, false),
+        Field::new("b", DataType::Float64, false),
+        Field::new("c", DataType::Float64, false),
+    ])), false, ),
+]);
 
--→
+// create some data
+let id = Int32Array::from(vec![`1, 2, 3, 4, 5`]);
+let nested = StructArray::from(vec![
+    (Arc::new(Field::new("a", DataType::Utf8, false)),
+        Arc::new(StringArray::from(vec![`"a", "b", "c", "d", "e"`])) as Arc<dyn Array>,),
+    (Arc::new(Field::new("b", DataType::Float64, false)),
+        Arc::new(Float64Array::from(vec![`1.1, 2.2, 3.3, 4.4, 5.5`])),),
+    (Arc::new(Field::new("c", DataType::Float64, false)),
+        Arc::new(Float64Array::from(vec![`2.2, 3.3, 4.4, 5.5, 6.6`])),),
+]);
+// build a record batch
+let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id), Arc::new(nested)])?;
+```
 
 ---
 
@@ -687,9 +778,17 @@ class: final-slide
 
 # Summary
 
+- Shared memory enables zero-copy message passing
+- Arrow defines a self-describing, platform-independent data format
+  - no serialization necessary
+  - no precompilation necessary
+  - makes zero-copy processing easier (e.g. through numpy/pandas conversions)
+- Arrow uses arrays as base type
+  - Columnar Layout
+  - Arrays are backed by (multiple) buffers
+  - Complex nested types are possible
 
-
-
+→ Arrow data format is a fit for Dora
 
     </textarea>
     <script src="../remark-latest.min.js"></script>
