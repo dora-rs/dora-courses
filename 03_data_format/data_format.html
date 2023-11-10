@@ -544,7 +544,7 @@ Drawbacks:
 - Array data is stored in one or multiple _buffers_
   - a buffer represents a memory region, e.g. on the heap or in shared memory
 - Arrays can have children to create more complex types
-    - Example: an array of `Vec<>>` can be represented by an offsets buffer and a child `u8` array
+    - Example: an array of `Vec<Vec<u8>>` can be represented by an offsets buffer and a child `u8` array
 - Efficient representation of `null` entries
      - Arrays support a _validity bitmap_ to indicate entries that are `null`
 ---
@@ -717,8 +717,8 @@ Example: <strong>Layout of <code style="color: #060; margin-left: 1rem;">[
   - both are a collection of fields/arrays with same length
   - there are `From` implementations to convert between the two types
   - differences
-    - `StructArray` can be nested and its fields can be `null`
-    - `RecordBatch` can additional top-level metadata and schema information
+        - `StructArray` can be nested and its fields can be `null`
+        - `RecordBatch` can additional top-level metadata and schema information
 - The `arrow-ipc` crate can write a `RecordBatch` into file (or other writer)
   - using `arrow_ipc::writer::FileWriter` (or `StreamWriter`)
   - useful for passing arrow data in shared memory
