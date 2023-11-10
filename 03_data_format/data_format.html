@@ -294,29 +294,87 @@ class: middle-slide
 # Agenda
 
 - Motivation:
-  - Representing typed data? -> serialization (e.g. JSON)
-  - Avoiding serialization overhead -> represent data close to native format
-  - Passing data through shared memory -> zero copy
-  - zero copy across languages -> arrow
+  - Passing data using shared memory → avoid copying data
+  - Serializing typed data
+  - Avoiding serialization overhead → use platform-independent data format <span class="gray">(e.g. Cap’n Proto)</span>
+  - Simplify building and data processing → use Apache Arrow
 - Arrow Data Format
-- Working with the Arrow format
+- Working with Arrow data
 
 ---
 
 # Passing data in Dora
 
 - Dora nodes run as separate processes
-    - Outputs need to cross process boundaries
-    - Pass data using inter process communication (IPC), e.g. TCP stream or shared memory
-- Challenge: IPC interfaces are not typed → raw binary data
+    - outputs need to cross process boundaries
+    - pass data using inter process communication (IPC), e.g. TCP stream
+- Output messages can be large, e.g. when sending image data
+    - for good performance, we want to avoid copying the data if possible
+    - TCP stream: cross-platform, but copies all data
+    - → Use _shared memory_ to send data
+
+---
+
+# Zero Copy using Shared Memory
+
+- Shared memory gives other processes direct access to some data
+  - Without any copying
+  - Possible on Linux, Windows, and macOS
+--
+
+- Example:
+    - Process A
+        ```rust
+        let shmem = shared_memory::ShmemConf::new().size(4096).create()?;
+
+        // write some data
+        unsafe { *shmem.as_ptr() = 42 };
+
+        let `id` = shmem.get_os_id().to_owned();
+        send_id_to_proc_b(`id`)?; // e.g. through a TCP message
+        ```
+    - Process B
+        ```rust
+        let `id` = receive_id_from_proc_a()?;
+        let shmem = shared_memory::ShmemConf::new().os_id(`id`).open()?;
+        let data = unsafe { *shmem.as_ptr() };
+        ```
+---
+
+
+# Dora: Passing data in shared memory
+
+In sender:
+
+1. Calculate required memory size
+2. Allocate shared memory
+3. Write data into shared memory
+  - or construct it there directly
+4. Send shared memory address + metadata to receiver
+  - via other IPC method (e.g. TCP stream)
+
+In receiver:
+
+5. Map received shared memory region
+6. Read and/or process data
+
+---
+
+# Passing typed data
+
+- Challenge: Shared memory is raw binary data → how can we send typed data?
 - We need a way to represent higher-level data
     - For example, floating point values, arrays, or structs
 
 --
 
 - Just use native data representation? → not possible
-  - Native representation varies across languages and architectures
-  - Rust ABI is not stable yet → might change between Rust versions
+    - Native representation varies across languages and architectures
+    - Rust ABI is not stable yet → might change between Rust versions
+
+--
+
+→ use _serialization_ to encode typed data to raw binary data
 
 ---
 
@@ -387,59 +445,53 @@ class: middle-slide
 
 ---
 
-# Cap’n Proto Example
+# Cap’n Proto Example: Serialization
 
 ```rust
 let mut message = ::capnp::message::Builder::new_default();
 {
-    let address_book = message.init_root::<address_book::Builder>();
-    let mut people = address_book.init_people(1);
+    let address_book = message.`init_root`::<address_book::Builder>();
+    let mut people = address_book.`init_people`(1);
     {
-        let mut alice = people.reborrow().get(0);
-        alice.set_id(123);
-        alice.set_name("Alice".into());
-        alice.set_email("alice@example.com".into());
+        let mut alice = people.`reborrow`().get(0);
+        alice.`set_id`(123);
+        alice.`set_name`("Alice".into());
+        alice.`set_email`("alice@example.com".into());
     }
 }
-let serialized: Vec<u8> = capnp::serialize::write_message_to_words(&message);
+capnp::serialize::write_message(&mut shared_memory, &message);
+```
+
+Challenges:
+
+- Sender must use special `init` and `set` methods
+- Does not work well with Rust's borrowing rules → additional `{}` scopes and `reborrow` calls are needed
+
+---
+
+# Cap’n Proto Example: Deserialization
+
+```rust
+let message_reader = serialize::read_message(&mut shared_memory, ::capnp::message::ReaderOptions::new())?;
+
+let address_book = message_reader.get_root::<`address_book::Reader`>()?;
+for person in address_book.`get_people`()? {
+    println!("{}: {}",
+        person.`get_name`()?.to_str()?,
+        person.`get_email`()?.to_str()?
+    );
+}
 ```
 
 Challenges:
 
 - Cap’n Proto is not self-describing → receiver needs to know message type to understand it
 - Receiver must use special accessor methods to read data → this can make data processing difficult
-- Data still needs to be copied on send/receive → avoid by using shared memory
 
 ---
 
-# Zero Copy using Shared Memory
 
-- Shared memory gives other processes direct access to some data
-  - Without any copying
-  - Possible on Linux, Windows, and macOS
---
-
-- Example:
-    - Process A
-        ```rust
-        let shmem = shared_memory::ShmemConf::new().size(4096).create()?;
-
-        // write some data
-        unsafe { *shmem.as_ptr() = 42 };
-
-        let `id` = shmem.get_os_id().to_owned();
-        send_id_to_proc_b(`id`)?; // e.g. through a TCP message
-        ```
-    - Process B
-        ```rust
-        let `id` = receive_id_from_proc_a()?;
-        let shmem = shared_memory::ShmemConf::new().os_id(`id`).open()?;
-        let data = unsafe { *shmem.as_ptr() };
-        ```
-
----
-
-# Cap’n Proto over Shared Memory
+# Cap’n Proto Evaluation
 
 Advantages:
 
@@ -597,7 +649,7 @@ In receiver:
 
 <!--
     ---
-        
+
     # Passing Data to Python with Arrow
 
     **Byte Arrays:**
@@ -627,7 +679,7 @@ In receiver:
         - the `arrow` crate defines a callback that forwards to the standard Rust `Drop` trait
         - we only need to set a proper owner for the underlying buffer using `Buffer::from_custom_allocation`
 
--->    
+-→
 
 ---
 
