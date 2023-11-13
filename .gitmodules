@@ -1,3 +1,6 @@
 [submodule "cli_course"]
 	path = cli_course
 	url = https://github.com/haixuanTao/cli_course
+[submodule "python_course"]
+	path = python_course
+	url = https://github.com/haixuanTao/blogpost_ffi

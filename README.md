@@ -12,8 +12,8 @@ It will uses as an example dora-rs to illustrate all the different topics.
 | Advanced features and how to contribute                 | [Slides](advanced_features/presentation.pdf) |
 | Dora-drives getting started                             | [Slides](dora_drives/presentation.pdf)       |
 | On data format                                          | [Slides](03_data_format/data_format.pdf)     |
-| On writing command line interface and tokio runtime     |
-| On writing a Python extension                           |
+| On writing command line interface and tokio runtime     | [Code](cli_course)                           |
+| On writing a Python extension                           | [Code](python_course)                        |
 | On writing shared library                               |
 | On distributed tracing, metrics, logs and Opentelemetry |
 | On Zero Copy optimization and benchmark                 |                                              |
