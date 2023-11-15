@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Shared Library Operators in Dora</title>
+    <meta charset="utf-8">
+    <style>
+        @font-face {
+            font-family: 'Carlito';
+            src: url('../fonts/Carlito.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Carlito';
+            src: url('../fonts/Carlito-Bold.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Carlito';
+            src: url('../fonts/Carlito-Italic.woff2') format('woff2');
+            font-weight: normal;
+            font-style: italic;
+        }
+
+        @font-face {
+            font-family: 'Iosevka Web';
+            font-display: swap;
+            font-weight: 400;
+            font-stretch: normal;
+            font-style: normal;
+            src: url('../fonts/iosevka-regular.woff2') format('woff2');
+        }
+
+        @font-face {
+            font-family: 'Carlito';
+            src: url('../fonts/Carlito-BoldItalic.woff2') format('woff2');
+            font-weight: 700;
+            font-style: italic;
+        }
+
+        @font-face {
+            font-family: 'Bebas Neue';
+            src: url('../fonts/BebasNeueRegular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Bebas Neue';
+            src: url('../fonts/BebasNeueBold.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Iosevka Web';
+            font-display: swap;
+            font-weight: 400;
+            font-stretch: normal;
+            font-style: italic;
+            src: url('../fonts/iosevka-italic.woff2') format('woff2');
+        }
+
+        @font-face {
+            font-family: 'Iosevka Web';
+            font-display: swap;
+            font-weight: 700;
+            font-stretch: normal;
+            font-style: normal;
+            src: url('../fonts/iosevka-bold.woff2') format('woff2');
+        }
+
+        @font-face {
+            font-family: 'Iosevka Web';
+            font-display: swap;
+            font-weight: 700;
+            font-stretch: normal;
+            font-style: italic;
+            src: url('../fonts/iosevka-bolditalic.woff2') format('woff2');
+        }
+
+        body {
+            font-family: 'Carlito';
+        }
+
+        .remark-slide-content {
+            padding: 1rem 4rem 1rem 4rem;
+        }
+
+        .middle-slide {
+            font-size: 25px;
+        }
+
+        h1,
+        h2,
+        h3 {
+            font-family: 'Carlito';
+            font-weight: bold;
+        }
+
+        .remark-slide-content h1 {
+            margin-top: 1rem;
+            font-size: 4rem;
+            margin-bottom: 2rem;
+        }
+
+        .remark-code,
+        .remark-inline-code {
+            font-family: 'Iosevka Web', Iosevka, monospace;
+        }
+
+        .title-slide,
+        .final-slide {
+            color: #000;
+        }
+
+        .title-slide .remark-slide-number,
+        .final-slide .remark-slide-number {
+            visibility: hidden;
+        }
+
+        .title-slide h1 {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-family: 'Bebas Neue';
+            font-size: 96pt;
+            margin-top: 1.5rem;
+        }
+
+        .title-slide h2 {
+            font-size: 3.5rem;
+            margin-bottom: 0rem;
+            margin-top: 1rem;
+        }
+
+        .title-slide .author-info {
+            position: absolute;
+            bottom: 2rem;
+            font-size: 1.5rem;
+        }
+
+        .final-slide h1 {
+            margin-top: 1.5rem;
+            font-size: 6rem;
+        }
+
+        li {
+            margin-top: 0.5rem;
+        }
+
+        li p:first-child {
+            margin-top: 0rem;
+        }
+
+        li p {
+            margin-bottom: 0rem;
+        }
+
+        li pre {
+            margin-top: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .remark-slide-number {
+            right: 2rem;
+        }
+
+        .footer {
+            position: absolute;
+            opacity: 0.5;
+            bottom: 12px;
+            left: 4rem;
+            font-size: 1rem;
+            line-height: 1.8;
+            text-align: left;
+        }
+
+        .right-column {
+            width: 25%;
+            float: right;
+            display: block;
+            font-size: 0.8em;
+            margin-left: 2rem;
+        }
+
+        .right-column figure {
+            margin: 0rem;
+        }
+
+        .right-column img {
+            max-width: 100%;
+        }
+
+        .right-column figcaption {
+            font-style: italic;
+            font-size: 0.8em;
+            color: #555;
+        }
+
+        .right-column h3 {
+            margin-bottom: 0rem;
+            font-size: 1.2em;
+        }
+
+        .right-column> :first-child {
+            margin-top: 0rem;
+        }
+
+        .footnotes,
+        .footnotes a {
+            color: #666;
+        }
+
+        .right-column ol {
+            margin-top: 0.5rem;
+        }
+
+        code,
+        .code {
+            font-family: 'Iosevka';
+        }
+
+        .footnote {
+            color: gray;
+            font-size: 0.6em;
+            vertical-align: super;
+            position: relative;
+            padding-left: 0.2rem;
+            padding-top: -5rem;
+        }
+
+        .footnote::before {
+            content: '['
+        }
+
+        .footnote::after {
+            content: ']'
+        }
+
+        .gray {
+            color: gray;
+        }
+
+        .green-border {
+            border: 2px solid green;
+        }
+
+        .green-border td {
+            border-left: 2px solid green;
+            min-width: 3rem;
+            text-align: center;
+        }
+
+        .green-border td:first-child {
+            border-left: none;
+        }
+
+        .pass-data-check {
+            height: .9em;
+            vertical-align: -0.2rem;
+        }
+    </style>
+</head>
+
+<body>
+    <textarea id="source">
+
+class: title-slide
+
+# Shared Library Operators in Dora
+
+## Creating, linking, calling into shared libraries
+
+<div class="author-info">
+    Philipp Oppermann<br>
+    os2edu<br>
+    2023-11-17
+</div>
+
+---
+
+name: middle-slide
+layout: true
+class: middle-slide
+<div class="footer">Shared Library Operators in Dora, Philipp Oppermann, os2edu, 2023-11-10</div>
+
+---
+
+
+# Agenda
+
+- Motivation: Operators in Dora
+  - load operators at runtime into same address space
+  - enable function calls between operator and dora runtime
+- Background
+  - Executables and libraries
+  - Linking
+  - Shared libraries
+  - linking at load time vs at runtime
+- Creating shared libraries in C and Rust
+- Linking shared libraries
+  - at load time -> build script + linker flags
+  - at runtime
+- Creating bindings
+  - bindgen
+  - type safety
+
+
+---
+
+# Operators in Dora
+
+// TODO
+
+---
+
+# Executables and Libraries
+
+- Executables are programs with a main function -> entry point
+- Libraries provide callable functions to executable and other libraries
+    - TODO examples crates.io
+    - typical file endings: `.a`, `.so`, `.dll`, TODO
+- Todo: using UNIX tools such as objdump to differentiate executables and libraries
+
+---
+
+# C Example
+
+- Executable
+- Library (static)
+
+---
+
+# Rust Example
+
+- Executable
+- Library (static)
+
+---
+
+# Rust Example: Bindgen
+
+TODO
+
+---
+
+# Linking
+
+- Linking combines object files and libraries and creates an executable
+- TODO Example C exe + C lib
+- TODO Example Rust exe + Rust lib
+- TODO Example C exe + Rust lib
+- TODO Example Rust exe + C lib
+
+---
+
+# Shared libraries
+
+- Don't link library at compile time
+  - Instead, link it only when the program is loaded (or even later)
+
+Advantages:
+- Avoid duplication of common libraries
+  - Both on disk and after loading in RAM
+  - Example: TODO common C library
+- Security: Updating a shared library fixes all executables
+  - Example: SSL libraries TODO
+- Platform-specific libraries
+  - Example: glibc, system libraries on Windows TODO
+
+Drawbacks:
+
+- Program might not work when when library is missing or at wrong version
+- Distribution is more difficult
+
+---
+
+# Dynamic linking
+
+- at load time
+- from system paths
+  - override possible using manifests (Windows) or env var (Linux) TODO
+
+---
+
+# Example: C Shared library
+
+TODO
+
+- create
+- link
+- load
+  - provoke error
+
+---
+
+# Example: Rust Shared library
+
+TODO
+
+- create
+- link
+- load
+  - provoke error
+- bindgen
+
+---
+
+# Shared library operators in dora
+
+Challenges:
+- The dora runtime is compiled ahead of time
+  - We don't have access to the operator
+- The dora runtime might be linked with multiple operators
+- We want good error messages
+
+
+-> use dynamic loading to link library manually at runtime
+
+---
+
+# Dynamic Loading
+
+- load library through explicit runtime operation
+- more resilient -> better error messages
+- drawback: less convenient, more manual work necessary
+
+---
+
+# Dynamic Loading in Rust
+
+TODO
+
+---
+
+# Safety and type checking
+
+TODO
+
+---
+
+class: final-slide
+
+# Summary
+
+
+
+    </textarea>
+    <script src="../remark-latest.min.js"></script>
+    <script>
+        var slideshow = remark.create({
+            ratio: '16:9',
+            navigation: {
+                scroll: false
+            },
+            slideNumberFormat: '%current%',
+            highlightLines: true,
+            highlightSpans: true,
+            countIncrementalSlides: false,
+        });
+    </script>
+</body>
+
+</html>
