@@ -271,7 +271,7 @@
 
 class: title-slide
 
-# Shared Library Operators in Dora
+# Shared Libraries Operators in Dora
 
 ## Creating, linking, calling into shared libraries
 
@@ -286,18 +286,20 @@ class: title-slide
 name: middle-slide
 layout: true
 class: middle-slide
-<div class="footer">Shared Library Operators in Dora, Philipp Oppermann, os2edu, 2023-11-10</div>
+<div class="footer">Shared Library Operators in Dora, Philipp Oppermann, os2edu, 2023-11-17</div>
 
 ---
 
 
 # Agenda
 
+- Background: Executables and libraries
 - Motivation: Operators in Dora
   - load operators at runtime into same address space
   - enable function calls between operator and dora runtime
-- Background
-  - Executables and libraries
+
+  - Background
+  -
   - Linking
   - Shared libraries
   - linking at load time vs at runtime
@@ -309,36 +311,200 @@ class: middle-slide
   - bindgen
   - type safety
 
-
----
-
-# Operators in Dora
-
-// TODO
-
 ---
 
 # Executables and Libraries
 
-- Executables are programs with a main function -> entry point
+- Executables are programs with a main function
 - Libraries provide callable functions to executable and other libraries
-    - TODO examples crates.io
-    - typical file endings: `.a`, `.so`, `.dll`, TODO
-- Todo: using UNIX tools such as objdump to differentiate executables and libraries
+    - e.g. Rust crates can use libraries through a `[dependencies]` section in their `Cargo.toml` file
+    - typical file endings of libraries are `.a`, `.lib`, `.so`, `.dll`
+
+--
+
+
+
+
+**Example:** Use `readelf` to read type of ELF files:
+
+```
+❯ readelf --file-header /usr/bin/ls | grep "Type"
+  Type:                              DYN (Position-Independent `Executable file`)
+❯ readelf --file-header /usr/lib32/libc.so.6 | grep "Type"
+  Type:                              DYN (`Shared object file`)
+```
 
 ---
 
 # C Example
 
-- Executable
-- Library (static)
+- `executable.c`:
+    ```c
+    #include <stdio.h>
+    void main() {
+        printf("hello world");
+    }
+    ```
+    - create executable: **`gcc -o executable executable.c`**
+    - run executable: `./executable`  →  prints "hello world"
+--
+- `sum.c`:
+    ```c
+    int sum(const int a, const int b) {
+        return a + b;
+    }
+    ```
+    - try to build as executable using `gcc -o sum sum.c`  →  error: undefined reference to `main'
+    - create object file: **`gcc -c sum.c`**
+    - then create static library: **`ar r libsum.a sum.o`**
+
+---
+
+# C Example: Using static library
+
+- Use `libsum.a` in `executable.c`:
+    - define header file with function signature in `sum.h`:
+        ```h
+        int sum(const int a, const int b);
+        ```
+    - include `sum.h` in executable:
+        ```c
+        #include <stdio.h>
+        #include `"sum.h"`
+
+        void main() {
+            printf("hello world %i", `sum(40, 2)`);
+        }
+        ```
+    - create executable, linking `libsum.a`:  **`gcc -o executable executable.c -L. -lsum`**
+    - run executable: `./executable`  →  prints "hello world 42"
 
 ---
 
 # Rust Example
 
-- Executable
-- Library (static)
+- Executable using cargo:
+    ```bash
+    ❯ cargo new --bin executable
+     Created binary (application) 'executable' package
+    ❯ cd executable
+    ❯ cargo build
+       Compiling executable v0.1.0 (/../executable)
+        Finished dev [unoptimized + debuginfo] target(s) in 0.13s
+    ❯ target/debug/executable
+    Hello, world!
+    ```
+--
+- Library using cargo:
+    - create: `cargo new --lib sum`
+    - modify `src/lib.rs`:
+        ```rust
+        pub fn sum(left: usize, right: usize) -> usize {
+            left + right
+        }
+        ```
+    - build using `cargo build`  →  creates `target/debug/libsum.rlib` library
+
+
+---
+
+# Rust Example: Using Rust library
+
+- Using `libsum.rlib` in `executable` crate:
+    - add dependency in `executable/Cargo.toml`:
+        ```toml
+        [dependencies]
+        sum = { path = "../sum" }
+        ```
+    - use `sum` function in `executable/src/main.rs`:
+        ```rust
+        use sum::sum;
+
+        fn main() {
+            println!("Hello, world! {}", sum(40, 2));
+        }
+        ```
+    - rebuild using `cargo build`
+    - run `target/debug/executable`  →  outputs _"Hello, world! 42"_
+
+**Note**: [`rlib` libraries](https://rustc-dev-guide.rust-lang.org/backend/libs-and-metadata.html#rlib) are Rust-specific and might change over time
+---
+
+
+# Operators in Dora
+
+- Dora operators are components that can be executed by the Dora runtime
+    - act as nodes in the dataflow graph → receive inputs and send outputs
+    - a single Dora runtime process can run multiple operators concurrently
+- Operators are **libraries** that implement a specific template
+    - e.g. they need to provide an **`on_event`** function
+
+--
+
+**Challenge:**
+
+- We don't want to recompile the Dora runtime when loading operators
+- `.a` and `.rlib` libraries need to be included at compile time
+
+→ we need to use a different library format that can be loaded without recompiling
+
+---
+
+# Python Libraries
+
+- Python is an interpreted language → no precompiled code
+- Rust-based Dora runtime can import Python operators using `pyo3` crate, e.g.:
+   ```rust
+    Python::with_gil(|py| {
+        let sum = PyModule::from_code(py, "
+            `def sum(x, y):`
+                `return x + y`
+        ", "sum.py", "sum")?;
+
+        let result: i32 = sum.getattr(`"sum"`)?.call2(`(40, 2)`)?.extract()?;
+        assert_eq!(result, 42);
+
+        Ok(())
+    })
+   ```
+- `pyo3` returns errors when operator has wrong format, e.g. is missing a required function
+
+→ we want something similar for compiled languages: **shared libraries**
+
+---
+
+# Shared libraries
+
+- Approach
+  - Precompile library as before, but include additional metadata
+  - Compile executable against stub library that describes the template
+  - When executable is loaded, combine compiled executable and library using the metadata
+- Supported and used on all major OS platforms, but different format:
+    - Linux: `.so`
+    - Windows: `.dll`
+    - MacOS: `.dylib`
+
+---
+
+# Example: C Shared library
+
+TODO
+
+- create
+- link
+- load
+
+---
+
+# Example: Rust Shared library
+
+TODO
+
+- create
+- link
+- load
+    - c compatibility
+- bindgen
 
 ---
 
@@ -348,20 +514,8 @@ TODO
 
 ---
 
-# Linking
 
-- Linking combines object files and libraries and creates an executable
-- TODO Example C exe + C lib
-- TODO Example Rust exe + Rust lib
-- TODO Example C exe + Rust lib
-- TODO Example Rust exe + C lib
-
----
-
-# Shared libraries
-
-- Don't link library at compile time
-  - Instead, link it only when the program is loaded (or even later)
+# Shared libraries: Pros and Cons
 
 Advantages:
 - Avoid duplication of common libraries
@@ -387,26 +541,12 @@ Drawbacks:
 
 ---
 
-# Example: C Shared library
+# Example: Load errors in C Shared library
 
 TODO
 
-- create
-- link
-- load
-  - provoke error
+- provoke load error
 
----
-
-# Example: Rust Shared library
-
-TODO
-
-- create
-- link
-- load
-  - provoke error
-- bindgen
 
 ---
 
