@@ -740,13 +740,21 @@ assert_eq!(result, 42);
 # Improving Safety
 
 - Provide header files to check operator signature
-- Still very easy to cause undefined behavior accidentally
+  - Still very easy to cause undefined behavior accidentally
+
 
 --
 
-- TODO `abi_stable` crate
+- Use the [`abi_stable`](https://docs.rs/abi_stable/latest/abi_stable/library/index.html) crate
   - designed for Rust-to-Rust FFI
-- guards against accidental incompatibilities, but not against malicious inputs
+  - generates `static` variables with type and layout information → verify on load
+  - provides FFI-compatible wrappers for standard library types
+  - custom types can [derive the `StableAbi` trait](https://docs.rs/abi_stable/latest/abi_stable/derive.StableAbi.html)
+  - even provides trait object support through [`DynTrait`](https://docs.rs/abi_stable/latest/abi_stable/struct.DynTrait.html) (for a selection of traits)
+
+--
+
+- `abi_stable` guards against accidental incompatibilities, but not against malicious inputs
     - → isolate untrusted shared library operators into separate runtime process
 
 ---
