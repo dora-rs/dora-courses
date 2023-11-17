@@ -295,21 +295,11 @@ class: middle-slide
 
 - Background: Executables and libraries
 - Motivation: Operators in Dora
-  - load operators at runtime into same address space
-  - enable function calls between operator and dora runtime
-
-  - Background
-  -
-  - Linking
-  - Shared libraries
-  - linking at load time vs at runtime
-- Creating shared libraries in C and Rust
-- Linking shared libraries
-  - at load time -> build script + linker flags
-  - at runtime
-- Creating bindings
-  - bindgen
-  - type safety
+- Shared Libraries
+  - C and Rust examples
+  - Shared library search paths
+  - Dynamic loading
+- Improving Safety
 
 ---
 
@@ -379,6 +369,11 @@ class: middle-slide
     - create executable, linking `libsum.a`:  **`gcc -o executable executable.c -L. -lsum`**
     - run executable: `./executable`  →  prints "hello world 42"
 
+--
+
+- **Note:** The argument order is important: `-l` needs to come after `executable.c`
+    - else **undefined reference to `sum'** error, as linker only looks for symbols that are referenced
+
 ---
 
 # Rust Example
@@ -399,7 +394,7 @@ class: middle-slide
     - create: `cargo new --lib sum`
     - modify `src/lib.rs`:
         ```rust
-        pub fn sum(left: usize, right: usize) -> usize {
+        pub fn sum(left: usize, right: usize) → usize {
             left + right
         }
         ```
@@ -484,16 +479,84 @@ class: middle-slide
     - Windows: `.dll`
     - MacOS: `.dylib`
 
+--
+
+- Our example Rust `executable` already has some shared library dependencies:
+```
+❯ readelf --dynamic target/debug/executable | grep "Shared"
+ 0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+ 0x0000000000000001 (NEEDED)             Shared library: [ld-linux-x86-64.so.2]
+```
+
 ---
 
 # Example: C Shared library
 
-TODO
+- We reuse the same `executable.c`, `sum.h`, and `sum.c` as before
+    ```c
+    int sum(const int a, const int b) {
+        return a + b;
+    }
+    ```
+- Build steps:
+    - create position-independent object file for `sum`: **`gcc -c -fPIC sum.c`**
+    - then create shared library: **`gcc -shared sum.o -o shared/libsum.so`**
+    - link against the shared library: **`gcc -o executable executable.c -Lshared -lsum`**
 
-- create
-- link
-- load
+--
 
+- Try running it:
+    ```
+    ❯ ./executable
+    ./executable: error while loading shared libraries: libsum.so: cannot open shared object file: No such file or directory
+    ```
+    → shared library is required for running the executable, but not found
+
+---
+
+# Shared Library Search Paths
+
+Lookup of shared libraries depends on operating system:
+
+- On Linux, the linker tries the following directories:
+    1. directories listed in the `LD_LIBRARY_PATH` environment variable
+    2. paths specified in the executable itself (through an [`rpath`](https://en.wikipedia.org/wiki/Rpath) attribute)
+    3. system search paths
+- MacOS is similar, but it uses an env variable called `DYLD_LIBRARY_PATH`
+- On Windows, the behavior is [more complex](https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order). Some differences are:
+    - no separate environment variable, instead the normal `PATH` is searched
+    - the folder containing the executable is searched
+    - the _current working directory_ is searched too by default (note: this can be dangerous)
+
+---
+
+# Fixing the C Shared Library Example
+
+- Problem: The `libsum.so` library lives in the `shared` subdirectory
+    - not in the default search path
+
+--
+
+- Solution 1: Set `LD_LIBRARY_PATH` environment variable:
+    ```bash
+    ❯ LD_LIBRARY_PATH=shared ./executable
+    hello world 42
+    ```
+
+--
+
+- Solution 2: Move library to system search path → not recommended
+
+--
+
+
+- Solution 3: Set `rpath` attribute when building `executable`:
+    ```bash
+    ❯ gcc -o executable executable.c -Lshared -lsum -Wl,-rpath shared
+    ❯ ./executable
+    hello world 42⏎
+    ```
 ---
 
 # Example: Rust Shared library
@@ -520,11 +583,11 @@ TODO
 Advantages:
 - Avoid duplication of common libraries
   - Both on disk and after loading in RAM
-  - Example: TODO common C library
+  - Example: `libLLVM-15.so` is over 100MiB
 - Security: Updating a shared library fixes all executables
-  - Example: SSL libraries TODO
+  - Example: SSL libraries
 - Platform-specific libraries
-  - Example: glibc, system libraries on Windows TODO
+  - Example: libc
 
 Drawbacks:
 
@@ -533,53 +596,93 @@ Drawbacks:
 
 ---
 
-# Dynamic linking
-
-- at load time
-- from system paths
-  - override possible using manifests (Windows) or env var (Linux) TODO
-
----
-
-# Example: Load errors in C Shared library
-
-TODO
-
-- provoke load error
-
-
----
-
-# Shared library operators in dora
+# Shared Library Operators in Dora
 
 Challenges:
 - The dora runtime is compiled ahead of time
-  - We don't have access to the operator
-- The dora runtime might be linked with multiple operators
-- We want good error messages
+  - we don't have access to the operator at this point → workaround possible using stub library
+- We want to load multiple operators → name conflicts
+  - e.g., there can only be one `on_event` function
+- The dora runtime should be able to recover from load errors
+  - operators in an incompatible format should not bring the runtime down
+  - load errors should result in useful error messages
 
-
--> use dynamic loading to link library manually at runtime
+→ use dynamic loading to link library manually at runtime
 
 ---
 
 # Dynamic Loading
 
-- load library through explicit runtime operation
-- more resilient -> better error messages
-- drawback: less convenient, more manual work necessary
+- Don't link to the shared library directly
+- Instead, load library at runtime using system functions
+    - on Linux and MacOS: `dlopen`, `dlsym`, `dlclose`
+    - on Windows: `LoadLibraryExW`, `GetProcAddress`, `FreeLibrary`
+
+--
+
+- Advantages:
+    - more resilient → better error messages
+    - no name conflicts → multiple operators can be loaded simultaneously
+    - no stubs needed for building Dora runtime
+- Drawbacks: less convenient, more manual work necessary
+
+---
+
+# Example: Dynamic Loading using `dlopen`
+
+TOOD
 
 ---
 
 # Dynamic Loading in Rust
 
-TODO
+Use the cross-platform `libloading` crate:
+
+```rust
+let result = unsafe {
+    let lib = libloading::Library::new("shared/libsum.so")?;
+    let func: libloading::Symbol<unsafe extern fn(u32, u32) -> u32> = lib.get(b"sum")?;
+    func(40, 2)
+};
+assert_eq!(result, 42);
+```
+
+--
+
+**Safety:**
+
+- We get nice error messages when the library or the requested symbol don't exist
+    - e.g. "Error: shared/libsum.so: cannot open shared object file: No such file or directory"
+    - e.g. "Error: shared/libsum.so: undefined symbol: sum"
+- But there is no type checking → the function signature is not verified
+    - that's the reason why all of the above code is considered `unsafe`
 
 ---
 
-# Safety and type checking
+# Improving Safety
 
-TODO
+- Provide header files to check operator signature
+- Still very easy to cause undefined behavior accidentally
+
+--
+
+- TODO `abi_stable` crate
+  - designed for Rust-to-Rust FFI
+- guards against accidental incompatibilities, but not against malicious inputs
+    - → isolate untrusted shared library operators into separate runtime process
+
+---
+
+# Future Work: WebAssembly Operators
+
+- WebAssembly is a sandboxed executable format designed for the web
+  - even safer than Python (no dangerous FFI calls possible)
+- Many languages can be compiled to WebAssembly, including Rust, C, etc.
+- There are multiple mature Rust-based WebAssembly runtimes available
+  - [Wasmtime](https://wasmtime.dev/) based on Cranelift
+  - [WasmEdge](https://wasmedge.org/) based on LLVM
+
+→ we plan to add support for WebAssembly operators to Dora in the future
 
 ---
 
@@ -587,6 +690,17 @@ class: final-slide
 
 # Summary
 
+- Creating shared libraries in C and Rust
+    - Different shared library search algorithms on Linux and Windows
+    - use `bindgen` to auto-generate bindings
+- Advantages and drawbacks of shared libraries
+    - avoid duplication, faster security fixes, use platform-specific code
+    - missing or incompatible libraries prevent running of executable
+- Dynamic loading
+    - using `dlopen`/`LoadLibraryExW` or the `libloading` crate
+    - enables independent linking, better error messages, and avoids name conflicts
+    - drawback: manual type specifications needed → mistakes can cause undefined behavior
+- Improving safety using `abi_stable` crate  → future work: sandboxed WebAssembly operators
 
 
     </textarea>
