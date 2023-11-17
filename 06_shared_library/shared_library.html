@@ -394,7 +394,7 @@ class: middle-slide
     - create: `cargo new --lib sum`
     - modify `src/lib.rs`:
         ```rust
-        pub fn sum(left: usize, right: usize) → usize {
+        pub fn sum(left: isize, right: isize) -> isize {
             left + right
         }
         ```
@@ -559,16 +559,83 @@ Lookup of shared libraries depends on operating system:
     ```
 ---
 
-# Example: Rust Shared library
+# Example: Rust Shared Library
 
-TODO
+- Steps:
+    - `cargo new --lib sum2`
+    - modify `sum2/src/lib.rs`:
+        ```rust
+        pub `extern "C"` fn sum(left: isize, right: isize) -> isize {
+            left + right
+        }
+        ```
+    - set the `crate-type` in `Cargo.toml`:
+        ```toml
+            [lib]
+            crate-type = ["`cdylib`"]
+        ```
+    - run `cargo build` to create `libsum2.so` in `target/debug`
 
-- create
-- link
-- load
-    - c compatibility
-- bindgen
+--
 
+- Created shared library _should be_ C-compatible, but linking with `executable` somehow fails:
+    ```bash
+    ❯ gcc -o executable executable.c -L`sum2/target/debug` -l`sum2`
+    /usr/bin/ld: /tmp/ccf95YLL.o: in function `main':
+    executable.c:(.text+0x13): `undefined reference to 'sum'`
+    ```
+
+---
+# Debug Rust Shared Library Example
+
+- Print available symbols using `nm`:
+    ```bash
+    ❯ nm -gD sum/target/debug/libsum.so
+                 w __cxa_finalize@GLIBC_2.2.5
+                 w __gmon_start__
+                 w _ITM_deregisterTMCloneTable
+                 w _ITM_registerTMCloneTable
+    ```
+    → no `sum` function
+--
+- Reasons:
+    - Rust functions are not exported as symbols by default
+    - Rust function names are _mangled_ by default to prevent name conflicts
+--
+- Solution: Set `#[no_mangle]` attribute:
+    ```rust
+    *#[no_mangle]
+    pub `extern "C"` fn sum(left: isize, right: isize) -> isize { ... }
+    ```
+    → after a `cargo build`, the `gcc` link error is now fixed
+
+---
+
+# Link Shared Library from Rust Executable
+
+- Rust does not support header files
+    - instead, use `extern` block to specify dependency on external `sum` function:
+        ```rust
+        // in executable/src/main.rs
+        extern "C" {
+            fn sum(a: isize, b: isize) -> isize;
+        }
+        ```
+    - the `bindgen` crate allows auto-generating this `extern` block based on header files
+--
+- Calling external functions is unsafe, as the Rust compiler cannot guarantee their safety:
+    ```rust
+    println!("Hello, world! {}", `unsafe { sum(40, 2) }`);
+    ```
+--
+- Pass linker flags via new `build.rs` build script:
+    ```rust
+    fn main() {
+        println!("cargo:rustc-link-search=native=`../sum2/target/debug`");
+        println!("cargo:rustc-link-lib=dylib=`sum2`");
+    }
+    ```
+    → `cargo build` now links to the shared library
 ---
 
 # Rust Example: Bindgen
