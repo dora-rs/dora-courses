@@ -692,7 +692,23 @@ Challenges:
 
 # Example: Dynamic Loading using `dlopen`
 
-TOOD
+```c
+#include <stdio.h>
+#include <dlfcn.h>
+
+int main(void) {
+    void *handle = dlopen("`libsum.so`", RTLD_LAZY);
+    if (!handle) { return -1; }
+
+    int (*sum)(int, int) = (int (*)(int, int)) dlsym(handle, "`sum`");
+    if (dlerror() != NULL) { return -1; }
+
+    printf("%d\n", `(*sum)(40, 2)`);
+
+    dlclose(handle);
+    return 0;
+}
+```
 
 ---
 
