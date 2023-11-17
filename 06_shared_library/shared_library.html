@@ -621,7 +621,7 @@ Lookup of shared libraries depends on operating system:
             fn sum(a: isize, b: isize) -> isize;
         }
         ```
-    - the `bindgen` crate allows auto-generating this `extern` block based on header files
+    - the [`bindgen`](https://rust-lang.github.io/rust-bindgen/) crate allows auto-generating this `extern` block based on header files
 --
 - Calling external functions is unsafe, as the Rust compiler cannot guarantee their safety:
     ```rust
@@ -636,11 +636,6 @@ Lookup of shared libraries depends on operating system:
     }
     ```
     → `cargo build` now links to the shared library
----
-
-# Rust Example: Bindgen
-
-TODO
 
 ---
 
@@ -759,7 +754,6 @@ class: final-slide
 
 - Creating shared libraries in C and Rust
     - Different shared library search algorithms on Linux and Windows
-    - use `bindgen` to auto-generate bindings
 - Advantages and drawbacks of shared libraries
     - avoid duplication, faster security fixes, use platform-specific code
     - missing or incompatible libraries prevent running of executable
