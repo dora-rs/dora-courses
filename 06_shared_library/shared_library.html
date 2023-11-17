@@ -271,7 +271,7 @@
 
 class: title-slide
 
-# Shared Libraries Operators in Dora
+# Shared Library Operators in Dora
 
 ## Creating, linking, calling into shared libraries
 
@@ -575,9 +575,7 @@ Lookup of shared libraries depends on operating system:
             crate-type = ["`cdylib`"]
         ```
     - run `cargo build` to create `libsum2.so` in `target/debug`
-
 --
-
 - Created shared library _should be_ C-compatible, but linking with `executable` somehow fails:
     ```bash
     ❯ gcc -o executable executable.c -L`sum2/target/debug` -l`sum2`
@@ -611,7 +609,7 @@ Lookup of shared libraries depends on operating system:
 
 ---
 
-# Link Shared Library from Rust Executable
+# Link Shared Library from Rust
 
 - Rust does not support header files
     - instead, use `extern` block to specify dependency on external `sum` function:
