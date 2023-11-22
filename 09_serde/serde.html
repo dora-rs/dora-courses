@@ -2,7 +2,7 @@
 <html>
 
 <head>
-    <title>Serde</title>
+    <title>Custom Serialization with serde</title>
     <meta charset="utf-8">
     <style>
         @font-face {
@@ -315,6 +315,7 @@ class: middle-slide
     - External crates to translate `serde` data format into target format
         - E.g. for JSON, YAML, MessagePack, TOML, CSV, binary formats, etc.
 - Derive macros for convenience
+- Supports `no_std` environments
 
 ---
 
@@ -340,7 +341,7 @@ Output:
   }
 }
 ```
-    
+
 
 ]
 
@@ -389,7 +390,7 @@ Line:
     x: 3
     y: 4
 ```
-    
+
 
 ]
 
@@ -420,15 +421,182 @@ fn main() {
 
 ---
 
-# The `Serialize` Trait
+# Serde Derive: Attributes
 
-TODO
+Derived `Serialize`/`Deserialize` implementations can be customized through `#[serde]` attributes, e.g.:
 
-TODO: manual implementation example
+- Rename containers or fields:
+    ```rust
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[serde(rename = "GreatExample", rename_all = "camelCase")]
+    struct Example {                        // struct name will be changed to `GreatExample`
+        field_one: u32,                     // will be renamed to `fieldOne`
+        some_other_field: u32,              // will be renamed to `someOtherField`
+        #[serde(rename = "lastField")]
+        field_three: bool,                  // will be renamed to `lastField`
+    }
+    ```
+--
+- Don't serialize `None` fields:
+    ```rust
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct Example {
+        `#[serde(skip_serializing_if = "Option::is_none")]`
+        field: Option<u32>,
+    }
+    ```
+---
+
+# Serde Derive: More Attributes
+
+.right-column[
+
+With `flatten`:
+```json
+{
+    "field_1": 42,
+    "field_a": true,
+    "field_b": "Hello"
+}
+```
+Without `flatten`:
+```json
+{
+    "field_1": 42,
+    "field_2": {
+        "field_a": true,
+        "field_b": "Hello"
+    }
+  }
+```
+]
+
+
+- Flatten nested structs:
+    ```rust
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct Example {
+        field_1: u32,
+        `#[serde(flatten)]`
+        field_2: Field2,
+    }
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct Field2 {
+        field_a: bool,
+        field_b: String,
+    }
+    ```
+--
+- Fill default values on deserialization:
+    ```rust
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct Example {
+        `#[serde(default)]`
+        name: String,                   // fills with empty string if not present
+    }
+    ```
 
 ---
 
-# The `DeSerialize` Trait
+# Serde Derive: Enum Representations
+
+TODO
+
+---
+
+# The `Serialize` Trait
+
+```rust
+pub trait Serialize {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+       where S: Serializer;
+}
+```
+
+- Implemented for Rust types that can be serialized
+  - maps Rust types to _serde data model_
+- `Serialize` trait is independent of target format
+  - generic parameter `S` allows passing in any compatible serializer
+- Standard implementations can be derived
+  - derive behavior can be customized through attributes
+  - full manual implementation is possible too
+
+---
+
+# Serde Data Model
+
+Most Rust types have corresponding types in the serde data model, e.g.:
+- all primitive types, e.g. `i64`, floats, `bool`, `char`
+- UTF8 strings, byte arrays, `Vec`, `HashMap`
+- structs, enums, tuples
+
+→ Serialization is often a trivial mapping
+
+--
+
+<hr>
+
+`Serialize` implementations can **map to a different serde type** if desired. For example:
+
+- `std::ffi::OsString` represents a platform-native string
+    - not guaranteed to be UTF8-encoded, so serializing as serde string would be invalid
+    - serialize as ASCII **byte array** on UNIX
+    - serialize as **sequence of 16-bit UTF-16** values
+
+---
+
+# Manual `Serialize` implementation
+
+```rust
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl serde::Serialize for Point {
+    fn serialize<S>(&self, serializer: S,) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut s = serializer.serialize_struct(
+            "Point",
+            2, // number of fields
+        )?;
+        s.serialize_field("x", &self.x)?;
+        s.serialize_field("y", &self.y)?;
+        s.end()
+    }
+}
+```
+
+---
+
+# Example: Change type on `Serialize`
+
+Serialize struct as string:
+
+```rust
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl serde::Serialize for Point {
+    fn serialize<S>(&self, serializer: S,) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let string_representation = format!("{}:{}", self.x, self.y);
+        serializer.`serialize_str`(&string_representation)
+    }
+}
+```
+
+
+---
+
+# The `Deserialize` Trait
 
 TODO
 
@@ -438,8 +606,7 @@ TODO: manual implementation example
 
 # Serde: Advanced Usage
 
-- TODO serde attributes (e.g. rename, flatten, enum representations)
-- TODO zero copy
+- TODO zero copy, deserializer lifetimes
 
 ---
 
