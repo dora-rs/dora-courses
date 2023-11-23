@@ -294,15 +294,12 @@ class: middle-slide
 # Agenda
 
 - Introduction to `serde` crate
-    - Basic design, data types
-    - Example: Deriving Serialize and Deserialize traits
-    - Example: Custom Serialize implementation
-    - Example: Custom Deserialize implementation
-    - Advanced usage: Zero-copy
-- Dynamic (De-)Serialization
-   - Motivation: Bridging ROS2 and Dora → CDR format
-   - Custom typed serializer for Python objects
-   - Custom type deserializer → `DeserializeSeed`
+    - Simple serialization using `derive` attributes
+    - The `Serialize` and `Deserialize` traits in detail
+    - Example implementations
+- Reading and writing ROS2 messages in Dora
+   - Serializer with dynamic target type
+   - Dynamic deserialization using `DeserializeSeed`
 
 ---
 
@@ -598,9 +595,180 @@ impl serde::Serialize for Point {
 
 # The `Deserialize` Trait
 
-TODO
+```rust
+pub trait Deserialize<'de>: Sized {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+       where D: Deserializer<'de>;
+}
+```
 
-TODO: manual implementation example
+- Goal: Drive the given `Deserializer` to map raw data into the serde data model
+- `Deserializer` provides two kinds of entry points:
+    - **`deserialize_any`** for self-describing formats (e.g. JSON)
+        - instructs the deserializer to read the data type from the raw data
+        - panics for formats that are not self-describing (e.g. Cap’n Proto)
+    - **typed `deserialize_*` functions**, e.g. `deserialize_f32` or `deserialize_string`
+--
+- Deserialize methods take a **`Visitor`** implementation that constructs the target value
+    - translates the serde data format into a Rust type
+    - gives additional type hints for nested data, e.g. structs
+
+---
+
+# Manual `Deserialize` Implementation
+
+```rust
+struct Number(u32);
+
+impl<'de> serde::Deserialize<'de> for Number {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let visitor = NumberVisitor;
+        deserializer.`deserialize_u32`(visitor)
+    }
+}
+
+struct NumberVisitor;
+
+impl<'de> Visitor<'de> for NumberVisitor {...}         // explained later
+```
+
+- we tell the deserializer that we expected a `u32` value
+  - allows deserializing from formats that are not self-describing
+
+---
+
+# Example: `deserialize_any`
+
+```rust
+enum NumberOrString {
+    Number(u32),
+    String(String),
+}
+
+impl<'de> serde::Deserialize<'de> for NumberOrString {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let visitor = NumberOrStringVisitor;
+        deserializer.`deserialize_any`(visitor)
+    }
+}
+
+struct NumberOrStringVisitor;
+impl<'de> Visitor<'de> for NumberOrStringVisitor {...}         // explained later
+```
+
+- only works with self-describing formats, e.g. JSON
+- panics when used with other formats, e.g. Cap’n Proto
+
+---
+
+# The `Visitor` trait
+
+```rust
+pub trait Visitor<'de>: Sized {
+    type Value;     // the target type that we want to deserialize to
+    fn expecting(&self, formatter: &mut Formatter<'_>) -> Result;       // only required method
+
+    fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E> where E: serde::de::Error { ... }
+    fn visit_i8<E>(self, v: i8) -> Result<Self::Value, E> where E: serde::de::Error { ... }
+    fn visit_i16<E>(self, v: i16) -> Result<Self::Value, E> where E: serde::de::Error { ... }
+    ...
+    fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E> where E: serde::de::Error { ... }
+    fn visit_char<E>(self, v: char) -> Result<Self::Value, E> where E: serde::de::Error { ... }
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> where E: serde::de::Error { ... }
+    fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E> where E: serde::de::Error { ... }
+    fn visit_string<E>(self, v: String) -> Result<Self::Value, E> where E: serde::de::Error { ... }
+    ...
+    fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
+        where A: SeqAccess<'de> { ... }
+    fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+        where A: MapAccess<'de> { ... }
+    fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
+        where A: EnumAccess<'de> { ... }
+}
+```
+
+---
+# Example: Creating a `NumberVisitor`
+
+```rust
+struct NumberVisitor;
+
+impl<'de> serde::de::Visitor<'de> for NumberVisitor {
+    type Value = Number;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("an unsigned 32-bit integer")
+    }
+
+    fn visit_u32<E>(self, v: u32) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(Number(v))
+    }
+}
+```
+
+- all the `visit_*` methods are optional → deserialization error by default
+- we expect a `u32`, so we only need to implement `visit_u32`, right?  → **wrong!**
+
+---
+
+# Implementing `visit_u32` is not enough
+
+.right-column[
+
+[Try it yourself on the playground](https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=8a6131c8000b69ab90424aca1d3bc5bd)
+
+]
+
+The following code panics:
+
+```rust
+let deserialized: Number = serde_json::from_str("42").unwrap();
+// → Error("`invalid type: integer '42'`, expected `an unsigned 32-bit integer`", line: 1, column: 2)
+```
+
+--
+
+- the message after "expected" is from our `expected()` implementation
+- the _"invalid type"_ error message is coming from the default implementation of **`visit_u64`**
+    - why is it called instead of `visit_u32`?
+    - remember, we called `deserialize_u32` in our `Deserialize` implementation:
+        ```rust
+        impl<'de> serde::Deserialize<'de> for Number {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
+                let visitor = NumberVisitor;
+                deserializer.`deserialize_u32`(visitor)     // → leads to a `visit_u64` call somehow?
+            }
+        }
+        ```
+---
+
+# Fixing the `NumberVisitor` Example
+
+- The `deserialize_*` methods are only a type hint
+    - the `Deserializer` is allowed to call other `visit_*` methods
+- There are no separate `u8`, `u16`, `u32`, and `u64` types in JSON
+    - only a general `unsigned` type
+    - → the `serde_json` `Deserializer` will always call `visit_u64` for all unsigned integers
+--
+- **Fix:** Add a `visit_u64` implementation to our `NumberVisitor`:
+    ```rust
+        fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> where E: serde::de::Error {
+            match u32::try_from(v) {
+                Ok(v) => Ok(Number(v)),
+                Err(_) => Err(E::custom("number is too large")),
+            }
+        }
+    ```
+- Also: implement similar methods, e.g. `visit_u8`, `visit_i32`, and maybe `visit_f32`
 
 ---
 
@@ -612,7 +780,52 @@ TODO: manual implementation example
 
 # Dora ROS2 Bridge
 
-TODO
+.right-column[.center[
+<div style="font-size: 30pt;">Dora</div>
+<span style="font-size: 50pt; display: block; transform: scaleY(1.7); margin-top: 1.7rem; margin-bottom: 1.7rem;;">↕</span>
+<div style="border: 1px dashed black;">
+    <span style="font-size: 30pt; display: block; margin-bottom: 1rem;">ROS2</span>
+
+    <table style="width: 100%;">
+        <tr>
+            <td>
+                <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" fill="currentColor" class="bi bi-tools" viewBox="0 0 16 16">
+                    <path d="M1 0 0 1l2.2 3.081a1 1 0 0 0 .815.419h.07a1 1 0 0 1 .708.293l2.675 2.675-2.617 2.654A3.003 3.003 0 0 0 0 13a3 3 0 1 0 5.878-.851l2.654-2.617.968.968-.305.914a1 1 0 0 0 .242 1.023l3.27 3.27a.997.997 0 0 0 1.414 0l1.586-1.586a.997.997 0 0 0 0-1.414l-3.27-3.27a1 1 0 0 0-1.023-.242L10.5 9.5l-.96-.96 2.68-2.643A3.005 3.005 0 0 0 16 3c0-.269-.035-.53-.102-.777l-2.14 2.141L12 4l-.364-1.757L13.777.102a3 3 0 0 0-3.675 3.68L7.462 6.46 4.793 3.793a1 1 0 0 1-.293-.707v-.071a1 1 0 0 0-.419-.814L1 0Zm9.646 10.646a.5.5 0 0 1 .708 0l2.914 2.915a.5.5 0 0 1-.707.707l-2.915-2.914a.5.5 0 0 1 0-.708ZM3 11l.471.242.529.026.287.445.445.287.026.529L5 13l-.242.471-.026.529-.445.287-.287.445-.529.026L3 15l-.471-.242L2 14.732l-.287-.445L1.268 14l-.026-.529L1 13l.242-.471.026-.529.445-.287.287-.445.529-.026L3 11Z"/>
+        </svg>
+    </td>
+    <td>
+        <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" fill="currentColor" class="bi bi-layout-wtf" viewBox="0 0 16 16">
+            <path d="M5 1v8H1V1h4zM1 0a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V1a1 1 0 0 0-1-1H1zm13 2v5H9V2h5zM9 1a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H9zM5 13v2H3v-2h2zm-2-1a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H3zm12-1v2H9v-2h6zm-6-1a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H9z"/>
+        </svg>
+    </td>
+    <td>
+        <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" fill="currentColor" class="bi bi-motherboard" viewBox="0 0 16 16">
+            <path d="M11.5 2a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5Zm2 0a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5Zm-10 8a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1h-6Zm0 2a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1h-6ZM5 3a1 1 0 0 0-1 1h-.5a.5.5 0 0 0 0 1H4v1h-.5a.5.5 0 0 0 0 1H4a1 1 0 0 0 1 1v.5a.5.5 0 0 0 1 0V8h1v.5a.5.5 0 0 0 1 0V8a1 1 0 0 0 1-1h.5a.5.5 0 0 0 0-1H9V5h.5a.5.5 0 0 0 0-1H9a1 1 0 0 0-1-1v-.5a.5.5 0 0 0-1 0V3H6v-.5a.5.5 0 0 0-1 0V3Zm0 1h3v3H5V4Zm6.5 7a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-2Z"/>
+            <path d="M1 2a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-2H.5a.5.5 0 0 1-.5-.5v-1A.5.5 0 0 1 .5 9H1V8H.5a.5.5 0 0 1-.5-.5v-1A.5.5 0 0 1 .5 6H1V5H.5a.5.5 0 0 1-.5-.5v-2A.5.5 0 0 1 .5 2H1Zm1 11a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11Z"/>
+        </svg>
+    </td>
+</tr>
+<tr>
+    <td>tooling</td>
+    <td>existing<br>systems</td>
+    <td>drivers</td>
+</tr>
+</table>
+</div>
+]]
+
+- ROS2 is a mature framework for robot software development
+- A bridge to ROS2 has many advantages for Dora
+    - Use ROS2 tooling for Dora
+        - For example, record and replay Dora messages using `rosbag`
+    - Compatibility with existing ROS2 systems
+        - Bridge allows partial migration to Dora
+    - Drivers written for ROS2
+        - Dora nodes can use them through bridge
+- Use `ros2-client` crate to
+    - communicate with ROS2 nodes via DDS
+    - serialize and deserialize messages in CDR format
+
 
 ---
 
@@ -627,13 +840,36 @@ TODO:
 
 ---
 
-# Type-guided Serialization
+# Serializing to dynamic target type
+
+- When using Python nodes, we only know the available ROS2 types at runtime
+    - because the `dora-daemon` and `dora-runtime` are precompiled on different machines
+    - we still need to serialize them to the **correct ROS2 type**
+- Approach:
+    - parse ROS2 msg files on startup → describe message formats
+    - supply ROS2 type name in `send_output` function → look up type info
+    - use type info to serialize Python object to correct ROS2 type
+
+---
+
+# Dynamic `Serialize` Implementation
 
 TODO
 
 ---
 
-# Type-guided Deserialization
+# Dynamic deserialization
+
+- We also want to deserialize ROS2 messages
+    - Challenge: CDR format is not self-describing → can't use `deserialize_any`
+- How to call correct `deserialize_*` functions without compile-time type info?
+
+Approach: TODO
+
+
+---
+
+# Using `DeserializeSeed`
 
 TODO DeserializeSeed
 
