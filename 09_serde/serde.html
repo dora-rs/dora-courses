@@ -496,12 +496,6 @@ Without `flatten`:
 
 ---
 
-# Serde Derive: Enum Representations
-
-TODO
-
----
-
 # The `Serialize` Trait
 
 ```rust
@@ -772,12 +766,6 @@ let deserialized: Number = serde_json::from_str("42").unwrap();
 
 ---
 
-# Serde: Advanced Usage
-
-- TODO zero copy, deserializer lifetimes
-
----
-
 # Dora ROS2 Bridge
 
 .right-column[.center[
@@ -831,12 +819,23 @@ let deserialized: Number = serde_json::from_str("42").unwrap();
 
 # CDR Format
 
+- short for "Common Data Representation"
+- binary format
 - not self-describing
-- limited Python types -> not all types are representable
+    - struct field names etc. are not stored
+    - we need to know exact type for deserialization
+--
 
-TODO:
-- parse ROS2 msg files
-- guide serialization/deserialization by type info
+
+- ROS2 describes message format in `.msg` files
+    - For example, the `Vector3.msg` file looks like this:
+    ```txt
+    float64 x
+    float64 y
+    float64 z
+    ```
+    - Format is relatively simple → we can parse it
+    - Base parser on existing `rclrust-msg-gen` crate
 
 ---
 
@@ -846,32 +845,141 @@ TODO:
     - because the `dora-daemon` and `dora-runtime` are precompiled on different machines
     - we still need to serialize them to the **correct ROS2 type**
 - Approach:
-    - parse ROS2 msg files on startup → describe message formats
-    - supply ROS2 type name in `send_output` function → look up type info
-    - use type info to serialize Python object to correct ROS2 type
+    - parse ROS2 `.msg` files on initialization
+    - supply ROS2 type name on topic creation function → look up type info from `.msg` file
+    - on `publish`, use type info to serialize Python object to correct ROS2 type
+--
+
+**Example:**
+
+```python
+turtle_twist_topic = ros2_node.create_topic("/turtle1/cmd_vel", "`geometry_msgs::Twist`", topic_qos)
+twist_writer = ros2_node.create_publisher(turtle_twist_topic)
+
+# serializes 'value' object as 'geometry_msgs::Twist' message
+twist_writer.publish(value)
+```
 
 ---
 
 # Dynamic `Serialize` Implementation
 
-TODO
+```rust
+pub struct TypedValue<'a> {
+    pub value: &'a arrow::ArrayData,
+    pub type_info: &'a TypeInfo,
+}
+
+impl serde::Serialize for TypedValue<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match &self.type_info.data_type {
+            DataType::UInt8 => {
+                let number = convert_to_u8(self.value);     // → this function could e.g. do integer tpe conversion
+                serializer.`serialize_u8`(number)
+            }
+            DataType::UInt16 => {...}
+            ...
+        }
+    }
+}
+```
+---
+
+# Dynamic `Serialize` Implementation (2)
+
+```rust
+match &self.type_info.data_type {
+    // ...continued
+    DataType::List(item_info) => {
+        let list_array: ListArray = self.value.clone().into();
+        let mut s = serializer.`serialize_seq`(Some(list_array.values.len()))?;
+
+        for item_value in list_array.iter() {
+            // leads to recursive call
+            let element = `TypedValue` {
+                value: &item_value,
+                type_info: &TypeInfo {
+                    data_type: item_info.data_type().clone(),
+                    // ..omitted
+                },
+            };
+            s.`serialize_element`(&element)?;
+        }
+
+        s.`end`()
+    }
+}
+```
 
 ---
 
 # Dynamic deserialization
 
 - We also want to deserialize ROS2 messages
-    - Challenge: CDR format is not self-describing → can't use `deserialize_any`
-- How to call correct `deserialize_*` functions without compile-time type info?
-
-Approach: TODO
-
+    - CDR format is not self-describing → cannot use `deserialize_any`
+    - we need to use correct `deserialize_*` for each deserialization step
+    - → supply type name on subscribe call → get type info of expected type from `.msg` file
+--
+- Challenge: No way to use runtime type info in `Deserialize` implementation:
+    ```rust
+    impl<'de> serde::Deserialize<'de> for OwnedTypedValue {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            match `type_info`.data_type { // `-> how to get access to type_info here?`
+                DataType::UInt32 => deserializer.deserialize_u32(NumberVisitor),
+                DataType::List(item_info) => {...}
+                ...
+            }
+        }
+    }
+    ```
 
 ---
 
 # Using `DeserializeSeed`
 
-TODO DeserializeSeed
+- It's not possible to use runtime data in `Deserialize` trait
+- Fortunately, there is an alternative **`DeserializeSeed`** trait for this case:
+    ```rust
+    pub trait DeserializeSeed<'de>: Sized {
+        `type Value;`
+
+        fn deserialize<D>(`self`, deserializer: D) -> Result<`Self::Value`, D::Error>
+           where D: Deserializer<'de>;
+    }
+    ```
+    - runtime context can be stored in `self` object
+    - `deserialize` method returns `Self::Value` (instead of returning `Self`)
+
+---
+
+# `DeserializeSeed` Example
+
+```rust
+pub struct TypedDeserializer {
+    type_info: TypeInfo,
+}
+
+impl<'de> serde::de::DeserializeSeed<'de> for `TypedDeserializer` {
+    type Value = arrow::ArrayData;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        match `self.type_info`.data_type {
+            DataType::UInt32 => deserializer.deserialize_u32(NumberVisitor),
+            DataType::List(item_info) => {...}
+            ...
+        }
+    }
+}
+```
 
 ---
 
@@ -879,7 +987,16 @@ class: final-slide
 
 # Summary
 
-TODO
+- The `serde` crate provides format-independent **`Serialize`** and **`Deserialize`** traits
+    - Also: **`DeserializeSeed`** for deserialization with additional runtime state
+    - Traits map between serde data model and Rust types
+    - External crates for mapping serde data model to **different serialization formats**
+- **Derive macros** make it easy to add `serde` support for custom structs/enums
+    - Attributes allow modifying serialization format, e.g. renames, skipping fields, flattening structs
+- Manual `Deserialize` implementations require custom **`Visitor`**
+    - **`deserialize_any`** only works with self-describing data formats
+    - no guarantee that deserializer follows `deserialize_*` type hint
+- Dora supports reading and writing **typed ROS2 messages** using custom serde implementations
 
     </textarea>
     <script src="../remark-latest.min.js"></script>
