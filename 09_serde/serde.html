@@ -286,7 +286,7 @@ class: title-slide
 name: middle-slide
 layout: true
 class: middle-slide
-<div class="footer">Custom Serde (De-)Serializer, Philipp Oppermann, os2edu, 2023-11-24</div>
+<div class="footer">Custom Serialization with serde, Philipp Oppermann, os2edu, 2023-11-24</div>
 
 ---
 
@@ -533,7 +533,7 @@ Most Rust types have corresponding types in the serde data model, e.g.:
 - `std::ffi::OsString` represents a platform-native string
     - not guaranteed to be UTF8-encoded, so serializing as serde string would be invalid
     - serialize as ASCII **byte array** on UNIX
-    - serialize as **sequence of 16-bit UTF-16** values
+    - serialize as **sequence of 16-bit UTF-16** values on Windows
 
 ---
 
@@ -574,7 +574,7 @@ struct Point {
 }
 
 impl serde::Serialize for Point {
-    fn serialize<S>(&self, serializer: S,) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
