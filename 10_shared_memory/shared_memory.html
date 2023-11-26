@@ -303,14 +303,15 @@ class: middle-slide
 ---
 # Agenda
 
-- Background: Dora inputs and outputs
-- TCP Streams in Rust
+- Background: Dora inputs/outputs and used IPC variants
+- TCP Sockets
+    - Basics
+    - Usage in sync and async Rust
 - Message passing using shared memory
     - General Design
     - Automatic cleanup
     - Optimizations
-
-TODO: update
+    - Cleanup with Arrow
 
 ---
 
@@ -879,7 +880,16 @@ We need to deallocate all shared memory regions again.
 class: final-slide
 
 # Summary
-TODO
+
+- TCP sockets
+    - Nagle's algorithm can lead to latency issues
+    - Simple message protocol based on sending message size first
+    - Async TCP sockets with tokio → waiting on multiple events at once
+- Shared memory for local, high-efficiency IPC
+    - Shared memory message passing in Dora
+    - Implemented and planned optimizations
+    - Automatic memory cleanup with Arrow
+
 
     </textarea>
     <script src="../remark-latest.min.js"></script>
