@@ -18,7 +18,7 @@ It will uses as an example dora-rs to illustrate all the different topics.
 | On distributed tracing, metrics, logs and Opentelemetry | [Slides](07_opentelemetry/Opentelemetry.pdf)   |
 | On Zero Copy optimization and benchmark                 | [Slides](08_zero_copy_benchmark/slides.pdf)    |
 | On writing a Ser/de custom allocator                    | [Slides](09_serde/serde.pdf)                   |
-| On writing custom Shared Memory server, TCP Stream      |
+| On writing custom Shared Memory server, TCP Stream      | [Slides](10_shared_memory/shared_memory.pdf)   |
 | On Async runtime and CPU-bound task                     |
 | Recap, planned features, questions, etc                 |
 
