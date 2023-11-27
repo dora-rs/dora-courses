@@ -478,7 +478,7 @@ fn handle_connection(connection: TcpStream)
 ]
 
 ```rust
-let listener = std::net::`TcpListener::bind`("127.0.0.1:80)?;
+let listener = std::net::`TcpListener::bind`("127.0.0.1:80")?;
 
 for connection in listener.incoming() {
     handle_connection(connection?)?;
@@ -488,7 +488,7 @@ for connection in listener.incoming() {
 **Client:**
 
 ```rust
-let stream = std::net::`TcpStream::connect`("127.0.0.1:80)?;
+let stream = std::net::`TcpStream::connect`("127.0.0.1:80")?;
 
 // implements std::io::Read and std::io::Write traits
 stream.write(&[42])?;
@@ -504,7 +504,7 @@ stream.read(&mut reply_buffer)?;
 **Server:**
 
 ```rust
-let listener = std::net::TcpListener::bind("127.0.0.1:80)?;
+let listener = std::net::TcpListener::bind("127.0.0.1:80")?;
 
 for connection in listener.incoming() {
     let connection = connection?;
@@ -516,7 +516,7 @@ for connection in listener.incoming() {
 **Client:**
 
 ```rust
-let stream = std::net::TcpStream::connect("127.0.0.1:80)?;
+let stream = std::net::TcpStream::connect("127.0.0.1:80")?;
 stream.`set_nodelay(true)`?;
 ```
 
@@ -599,7 +599,7 @@ fn receive_message(connection: &mut TcpStream) -> std::io::Result<Vec<u8>> {
 
 Spawn new task for each incoming connection:
 ```rust
-let listener = tokio::net::TcpListener::bind("127.0.0.1:80).await?;
+let listener = tokio::net::TcpListener::bind("127.0.0.1:80").await?;
 
 loop {
     let (socket, _) = listener.accept().await?;
@@ -629,7 +629,7 @@ async fn handle_connection(socket: tokio::net::TcpStream) -> std::io::Result<()>
 use tokio_stream::wrappers::{ReceiverStream, TcpListenerStream};
 use futures_concurrency::stream::Merge;
 
-let listener = tokio::net::TcpListener::bind("127.0.0.1:80).await?;
+let listener = tokio::net::TcpListener::bind("127.0.0.1:80").await?;
 let `new_connections` = TcpListenerStream::new(listener).map(Event::NewConnection);
 
 let (task_messages_tx, task_messages_rx) = tokio::sync::mpsc::channel(5);
@@ -687,7 +687,7 @@ Process A:
 ```rust
 use shared_memory::*;
 
-let shmem = match ShmemConf::new().size(4096).create()? {
+let shmem = ShmemConf::new().size(4096).create()?;
 
 // write some data
 unsafe { *raw_ptr.as_ptr() = 42 };
